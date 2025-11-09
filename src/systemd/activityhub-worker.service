@@ -1,0 +1,15 @@
+[Unit]
+Description=ActivityHub Workers (RSS + Queue)
+After=network.target
+
+[Service]
+WorkingDirectory=/home/USER/activityhub
+Environment=NODE_ENV=production
+EnvironmentFile=/home/USER/activityhub/.env
+ExecStart=/usr/bin/bash -lc 'node src/worker.js && node src/queue.js'
+Restart=always
+RestartSec=10
+User=USER
+
+[Install]
+WantedBy=multi-user.target

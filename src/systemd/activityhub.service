@@ -1,0 +1,14 @@
+[Unit]
+Description=ActivityHub API
+After=network.target
+
+[Service]
+WorkingDirectory=/home/USER/activityhub
+Environment=NODE_ENV=production
+EnvironmentFile=/home/USER/activityhub/.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+User=USER
+
+[Install]
+WantedBy=multi-user.target

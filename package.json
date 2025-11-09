@@ -1,0 +1,35 @@
+{
+  "name": "activity-hub",
+  "version": "1.0.0",
+  "description": "underground broadcast daemon",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js",
+    "worker": "nodemon worker.js",
+    "queue": "nodemon queue.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chdigius/activity-hub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/chdigius/activity-hub/issues"
+  },
+  "homepage": "https://github.com/chdigius/activity-hub#readme",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.6.2",
+    "rss-parser": "^3.13.0",
+    "ulid": "^3.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
