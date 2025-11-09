@@ -54,12 +54,37 @@ app.get('/outbox', async (req, reply) => {
     });
 });
 
+// replace your existing /hook/refresh with this:
 app.post('/hook/refresh', async (req, reply) => {
-  try {
-    const list = (process.env.FEED_URLS || '').split(',').map(s=>s.trim()).filter(Boolean)
-    for (const url of list) await ingestFeed(url)
-    reply.send({ ok: true })
-  } catch (e) { reply.code(500).send({ ok:false, error: e.message }) }
+  const list = (process.env.FEED_URLS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  if (list.length === 0) {
+    return reply.code(400).send({ ok: false, error: 'FEED_URLS is empty' })
+  }
+
+  const results = []
+  for (const url of list) {
+    try {
+      const t0 = Date.now()
+      await ingestFeed(url)
+      results.push({ url, ok: true, ms: Date.now() - t0 })
+    } catch (e) {
+      // capture something useful even if e.message is empty
+      results.push({
+        url,
+        ok: false,
+        error: e?.response?.status
+          ? `HTTP ${e.response.status} ${e.response.statusText}`
+          : (e?.message || String(e))
+      })
+    }
+  }
+
+  const ok = results.every(r => r.ok)
+  return reply.code(ok ? 200 : 207).send({ ok, results })
 })
 
 
