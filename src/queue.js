@@ -25,8 +25,9 @@ async function deliver(row) {
   }
 
   if (row.dest === 'linkedin') {
+    console.log(`[queue] LinkedIn → event ${row.event_id} as ${process.env.LINKEDIN_MEMBER_URN}`);
     await postToLinkedIn(event)
-    return
+    console.log(`[queue] LinkedIn OK → event ${row.event_id}`);
   }
 
   throw new Error(`Unknown dest ${row.dest}`)
@@ -52,7 +53,7 @@ async function loop() {
         UPDATE deliveries
         SET attempts=?, next_retry_at=datetime('now', ? || ' minutes'), last_error=?
         WHERE id=?
-      `).run(attempts, mins, String(err.response?.data || err.message), d.id)
+      `).run(attempts, mins, JSON.stringify(err.response?.data ?? { message: err.message, stack: err.stack }), d.id)
       if (attempts >= 5) {
         db.prepare(`UPDATE deliveries SET status='failed' WHERE id=?`).run(d.id)
       }
