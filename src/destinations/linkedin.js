@@ -22,6 +22,14 @@ export async function postToLinkedIn(event) {
   const fallbackVersion = new Date().toISOString().slice(0, 7).replace('-', ''); // e.g. 202511
   const apiVersion = isYyyyMm ? envVersion : fallbackVersion;
 
+  console.log('[linkedin] API version debug:', {
+    raw_env: process.env.LINKEDIN_API_VERSION,
+    envVersion,
+    isYyyyMm,
+    fallbackVersion,
+    final_apiVersion: apiVersion
+  });
+
   const summary = (event.summary || '').slice(0, 240);
   const caption = `🚀 ${event.title}\n\n${summary}\n\n${event.url}`.trim();
 
