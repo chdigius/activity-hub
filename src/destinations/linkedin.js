@@ -47,7 +47,7 @@ export async function postToLinkedIn(event) {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
     'X-Restli-Protocol-Version': '2.0.0',
-    'LinkedIn-Version': apiVersion,      // <-- REQUIRED for /rest/*
+    'LinkedIn-Version': '202405',      // <-- REQUIRED for /rest/*
     Accept: 'application/json'
   };
 
