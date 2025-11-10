@@ -10,7 +10,7 @@ export async function postToLinkedIn(event) {
 
   const token = process.env.LINKEDIN_TOKEN;
   const authorUrn = process.env.LINKEDIN_MEMBER_URN;
-  const apiVersion = process.env.LINKEDIN_API_VERSION || '202401'; // optional but nice
+  // const apiVersion = process.env.LINKEDIN_API_VERSION || '202401'; // optional but nice
 
   if (!token || !authorUrn) {
     const msg = '[linkedin] Missing env: require LINKEDIN_TOKEN and LINKEDIN_MEMBER_URN';
@@ -39,7 +39,7 @@ export async function postToLinkedIn(event) {
     'Content-Type': 'application/json',
     'X-Restli-Protocol-Version': '2.0.0',
     // LinkedIn sometimes wants a version header for /rest/* endpoints:
-    'LinkedIn-Version': apiVersion,
+    // 'LinkedIn-Version': apiVersion,
     Accept: 'application/json'
   };
 
