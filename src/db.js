@@ -27,6 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_events_published ON events(published_at DESC);
 
 CREATE TABLE IF NOT EXISTS outbox (
   id TEXT PRIMARY KEY,
+  actor_id TEXT NOT NULL,
   event_id TEXT NOT NULL,
   activity_json TEXT NOT NULL,
   published_at TEXT NOT NULL,
