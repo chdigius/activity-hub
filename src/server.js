@@ -161,50 +161,74 @@ app.post('/inbox', async (request, reply) => {
 
   try {
     if (activity.type === "Follow") {
-      const target = activity.object    // should be your actor URL
-      const follower = activity.actor   // their actor URL
+      const target = activity.object   // your actor URL
+      const follower = activity.actor  // their actor URL
 
       const actorEntry = Object.values(ACTORS).find(a => a.id === target)
-      if (actorEntry) {
-        // store follower
+      if (!actorEntry) {
+        console.log('[INBOX] Follow for unknown object:', target)
+      } else {
+        // 1) store follower locally
         db.prepare(`
           INSERT OR IGNORE INTO followers (actor_id, follower)
           VALUES (?, ?)
         `).run(actorEntry.id, follower)
 
-        // build Accept activity
-        const acceptId = `${actorEntry.id.replace('/actors/', '/activities/')}/accept-${Date.now()}`
-        const accept = {
-          "@context": "https://www.w3.org/ns/activitystreams",
-          id: acceptId,
-          type: "Accept",
-          actor: actorEntry.id,
-          object: activity
-        }
-
-        // naive Accept POST for now (we'll add HTTP signatures later)
-        const inboxUrl = `${follower}/inbox`
-        await fetch(inboxUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/activity+json'
-          },
-          body: JSON.stringify(accept)
+        // 2) discover follower inbox from their actor doc
+        console.log('[INBOX] fetching follower actor doc:', follower)
+        const actorRes = await fetch(follower, {
+          headers: { 'Accept': 'application/activity+json' }
         })
 
-        console.log('[INBOX] stored follower + sent Accept to', inboxUrl)
-      } else {
-        console.log('[INBOX] Follow for unknown object:', target)
+        if (!actorRes.ok) {
+          console.error('[INBOX] failed to fetch follower actor doc:', actorRes.status, await actorRes.text())
+        } else {
+          const followerActor = await actorRes.json()
+          const inboxUrl =
+            followerActor.inbox ||
+            (followerActor.endpoints && followerActor.endpoints.sharedInbox)
+
+          console.log('[INBOX] follower inbox URL:', inboxUrl)
+
+          if (inboxUrl) {
+            const acceptId = `${actorEntry.id.replace('/actors/', '/activities/')}/accept-${Date.now()}`
+            const accept = {
+              "@context": "https://www.w3.org/ns/activitystreams",
+              id: acceptId,
+              type: "Accept",
+              actor: actorEntry.id,
+              object: activity
+            }
+
+            const body = JSON.stringify(accept)
+
+            const acceptRes = await fetch(inboxUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/activity+json'
+                // (later: add HTTP Signature headers here)
+              },
+              body
+            })
+
+            console.log('[INBOX] sent Accept to', inboxUrl, 'status =', acceptRes.status)
+            if (!acceptRes.ok) {
+              console.error('[INBOX] Accept response body:', await acceptRes.text())
+            }
+          } else {
+            console.error('[INBOX] follower actor has no inbox field')
+          }
+        }
       }
     }
   } catch (err) {
     console.error('[INBOX] error handling activity:', err)
-    // don't rethrow – we still want to ACK to Mastodon
+    // don’t rethrow; we still want to ACK the inbox POST
   }
 
-  // Always ACK so Mastodon doesn't keep retrying
   reply.code(202).send({})
 })
+
 
 app.get('/actors/:name/followers', async (req, reply) => {
   const actor = ACTORS[req.params.name]
@@ -224,6 +248,7 @@ app.get('/actors/:name/followers', async (req, reply) => {
     orderedItems: followers
   })
 })
+
 
 app.get('/health', async () => ({ ok: true }))
 app.listen({ port: PORT, host: '0.0.0.0' })
