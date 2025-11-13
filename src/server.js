@@ -101,6 +101,58 @@ app.get('/outbox', async (req, reply) => {
   })
 })
 
+app.get('/activities/:name/:eventId', async (req, reply) => {
+  const actor = ACTORS[req.params.name]
+  if (!actor) {
+    return reply.code(404).send({ error: 'not found' })
+  }
+
+  const activityId = `${actor.id.replace('/actors/', '/activities/')}/${req.params.eventId}`
+
+  const row = db.prepare(
+    `SELECT activity_json FROM outbox WHERE id = ? AND actor_id = ?`
+  ).get(activityId, actor.id)
+
+  if (!row) {
+    return reply.code(404).send({ error: 'activity not found' })
+  }
+
+  const activity = JSON.parse(row.activity_json)
+
+  return reply
+    .header('Content-Type', 'application/activity+json')
+    .send(activity)
+})
+
+app.get('/objects/:name/:eventId', async (req, reply) => {
+  const actor = ACTORS[req.params.name]
+  if (!actor) {
+    return reply.code(404).send({ error: 'not found' })
+  }
+
+  const activityId = `${actor.id.replace('/actors/', '/activities/')}/${req.params.eventId}`
+
+  const row = db.prepare(
+    `SELECT activity_json FROM outbox WHERE id = ? AND actor_id = ?`
+  ).get(activityId, actor.id)
+
+  if (!row) {
+    return reply.code(404).send({ error: 'object not found' })
+  }
+
+  const activity = JSON.parse(row.activity_json)
+  const object = activity.object || {}
+
+  // Make sure @context is present on the Note too
+  if (!object['@context']) {
+    object['@context'] = "https://www.w3.org/ns/activitystreams"
+  }
+
+  return reply
+    .header('Content-Type', 'application/activity+json')
+    .send(object)
+})
+
 app.post('/inbox', async (request, reply) => {
   const activity = request.body
 
