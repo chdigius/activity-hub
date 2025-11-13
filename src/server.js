@@ -64,6 +64,21 @@ app.get('/outbox', async (req, reply) => {
   })
 })
 
+app.post('/inbox', async (request, reply) => {
+  const activity = request.body
+
+  // Super basic sanity log – so we can see if Mastodon ever hits this
+  console.log('[INBOX] received activity:')
+  console.log(JSON.stringify(activity, null, 2))
+
+  // Later, we can:
+  // - verify HTTP signatures
+  // - validate the activity
+  // - enqueue it for worker processing
+  // But for now, just acknowledge receipt
+  reply.code(202).send({})
+})
+
 app.get('/health', async () => ({ ok: true }))
 app.listen({ port: PORT, host: '0.0.0.0' })
   .then(()=>console.log(`ActivityHub listening on :${PORT}`))
