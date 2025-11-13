@@ -6,6 +6,21 @@ import { ACTORS, PUBLIC } from './config.js'
 const app = Fastify()
 const PORT = process.env.PORT || 8080
 
+// accept application/activity+json (or any other +json)
+app.addContentTypeParser(
+  /^application\/(.+\+)?json$/,
+  { parseAs: 'string' },
+  function (request, body, done) {
+    try {
+      const json = JSON.parse(body)
+      done(null, json)
+    } catch (err) {
+      err.statusCode = 400
+      done(err)
+    }
+  }
+)
+
 // WebFinger: resolve any acct:user@host that exists in ACTORS
 app.get('/.well-known/webfinger', async (req, reply) => {
   const resource = String(req.query.resource || '')
