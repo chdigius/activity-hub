@@ -155,17 +155,66 @@ app.get('/objects/:name/:eventId', async (req, reply) => {
 
 app.post('/inbox', async (request, reply) => {
   const activity = request.body
-
-  // Super basic sanity log – so we can see if Mastodon ever hits this
   console.log('[INBOX] received activity:')
   console.log(JSON.stringify(activity, null, 2))
 
-  // Later, we can:
-  // - verify HTTP signatures
-  // - validate the activity
-  // - enqueue it for worker processing
-  // But for now, just acknowledge receipt
+  // FOLLOW handling
+  if (activity.type === "Follow") {
+    const target = activity.object
+    const follower = activity.actor
+
+    // verify it's for one of our actors
+    const actorEntry = Object.values(ACTORS).find(a => a.id === target)
+    if (actorEntry) {
+      // store follower
+      db.prepare(`
+        INSERT OR IGNORE INTO followers (actor_id, follower)
+        VALUES (?, ?)
+      `).run(actorEntry.id, follower)
+
+      // build Accept activity
+      const acceptId = `${actorEntry.id.replace('/actors/', '/activities/')}/accept-${Date.now()}`
+      const accept = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        id: acceptId,
+        type: "Accept",
+        actor: actorEntry.id,
+        object: activity
+      }
+
+      // POST Accept back to their inbox
+      await fetch(`${follower}/inbox`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/activity+json'
+        },
+        body: JSON.stringify(accept)
+      })
+
+      console.log("[INBOX] sent Accept:", acceptId)
+    }
+  }
+
   reply.code(202).send({})
+})
+
+app.get('/actors/:name/followers', async (req, reply) => {
+  const actor = ACTORS[req.params.name]
+  if (!actor) return reply.code(404).send({ error: 'not found' })
+
+  const rows = db.prepare(
+    `SELECT follower FROM followers WHERE actor_id = ?`
+  ).all(actor.id)
+
+  const followers = rows.map(r => r.follower)
+
+  return reply.header('Content-Type','application/activity+json').send({
+    "@context": "https://www.w3.org/ns/activitystreams",
+    id: `${actor.id}/followers`,
+    type: "OrderedCollection",
+    totalItems: followers.length,
+    orderedItems: followers
+  })
 })
 
 app.get('/health', async () => ({ ok: true }))
