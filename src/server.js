@@ -28,12 +28,34 @@ app.get('/.well-known/webfinger', async (req, reply) => {
   const m = resource.match(/^acct:([^@]+)@/i)
   const username = m?.[1]
   const actor = username && ACTORS[username]
-  if (!actor) return reply.code(404).send({ error: 'not found' })
-  return reply.send({
-    subject: `acct:${actor.username}@${new URL(PUBLIC.BASE).hostname}`,
-    links: [{ rel: 'self', type: 'application/activity+json', href: actor.id }]
-  })
+  if (!actor) {
+    return reply
+      .code(404)
+      .type('application/jrd+json; charset=utf-8')
+      .send({ error: 'not found' })
+  }
+
+  const host = new URL(PUBLIC.BASE).hostname
+
+  const jrd = {
+    subject: `acct:${actor.username}@${host}`,
+    aliases: [
+      actor.id
+    ],
+    links: [
+      {
+        rel: 'self',
+        type: 'application/activity+json',
+        href: actor.id
+      }
+    ]
+  }
+
+  return reply
+    .type('application/jrd+json; charset=utf-8')
+    .send(jrd)
 })
+
 
 app.get('/actors/:name', async (req, reply) => {
   const actor = ACTORS[req.params.name]
