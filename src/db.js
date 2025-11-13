@@ -44,11 +44,11 @@ CREATE TABLE IF NOT EXISTS deliveries (
   last_error TEXT
 );
 
-  CREATE TABLE IF NOT EXISTS followers (
-    actor_id TEXT NOT NULL,
-    follower TEXT NOT NULL,
-    PRIMARY KEY (actor_id, follower)
-  )
+CREATE TABLE IF NOT EXISTS followers (
+  actor_id TEXT NOT NULL,
+  follower TEXT NOT NULL,
+  PRIMARY KEY (actor_id, follower)
+);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_delivery ON deliveries(event_id, dest);
 `);
