@@ -155,46 +155,54 @@ app.get('/objects/:name/:eventId', async (req, reply) => {
 
 app.post('/inbox', async (request, reply) => {
   const activity = request.body
+
   console.log('[INBOX] received activity:')
   console.log(JSON.stringify(activity, null, 2))
 
-  // FOLLOW handling
-  if (activity.type === "Follow") {
-    const target = activity.object
-    const follower = activity.actor
+  try {
+    if (activity.type === "Follow") {
+      const target = activity.object    // should be your actor URL
+      const follower = activity.actor   // their actor URL
 
-    // verify it's for one of our actors
-    const actorEntry = Object.values(ACTORS).find(a => a.id === target)
-    if (actorEntry) {
-      // store follower
-      db.prepare(`
-        INSERT OR IGNORE INTO followers (actor_id, follower)
-        VALUES (?, ?)
-      `).run(actorEntry.id, follower)
+      const actorEntry = Object.values(ACTORS).find(a => a.id === target)
+      if (actorEntry) {
+        // store follower
+        db.prepare(`
+          INSERT OR IGNORE INTO followers (actor_id, follower)
+          VALUES (?, ?)
+        `).run(actorEntry.id, follower)
 
-      // build Accept activity
-      const acceptId = `${actorEntry.id.replace('/actors/', '/activities/')}/accept-${Date.now()}`
-      const accept = {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        id: acceptId,
-        type: "Accept",
-        actor: actorEntry.id,
-        object: activity
+        // build Accept activity
+        const acceptId = `${actorEntry.id.replace('/actors/', '/activities/')}/accept-${Date.now()}`
+        const accept = {
+          "@context": "https://www.w3.org/ns/activitystreams",
+          id: acceptId,
+          type: "Accept",
+          actor: actorEntry.id,
+          object: activity
+        }
+
+        // naive Accept POST for now (we'll add HTTP signatures later)
+        const inboxUrl = `${follower}/inbox`
+        await fetch(inboxUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/activity+json'
+          },
+          body: JSON.stringify(accept)
+        })
+
+        console.log('[INBOX] stored follower + sent Accept to', inboxUrl)
+      } else {
+        console.log('[INBOX] Follow for unknown object:', target)
       }
-
-      // POST Accept back to their inbox
-      await fetch(`${follower}/inbox`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/activity+json'
-        },
-        body: JSON.stringify(accept)
-      })
-
-      console.log("[INBOX] sent Accept:", acceptId)
     }
+  } catch (err) {
+    console.error('[INBOX] error handling activity:', err)
+    // don't rethrow – we still want to ACK to Mastodon
   }
 
+  // Always ACK so Mastodon doesn't keep retrying
   reply.code(202).send({})
 })
 
