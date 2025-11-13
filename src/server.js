@@ -1,10 +1,18 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import db from './db.js'
+import fs from 'fs'
+
 import { ACTORS, PUBLIC } from './config.js'
+import { signRequest } from './signing.js'
 
 const app = Fastify()
 const PORT = process.env.PORT || 8080
+
+const CHDIGIUS_PUBLIC_KEY_PEM = fs.readFileSync(process.env.CHDIGIUS_PUBLIC_KEY_PATH, 'utf8')
+
+// then stash that into ACTORS["chdigius"].publicKeyPem or an env var
+ACTORS.chdigius.publicKeyPem = CHDIGIUS_PUBLIC_KEY_PEM
 
 // accept application/activity+json (or any other +json)
 app.addContentTypeParser(
@@ -60,16 +68,27 @@ app.get('/.well-known/webfinger', async (req, reply) => {
 app.get('/actors/:name', async (req, reply) => {
   const actor = ACTORS[req.params.name]
   if (!actor) return reply.code(404).send({ error: 'not found' })
+
+  const actorId = actor.id
+  const publicKeyPem = actor.publicKeyPem
+
   return reply.header('Content-Type','application/activity+json').send({
-    "@context": ["https://www.w3.org/ns/activitystreams"],
-    id: actor.id,
+    "@context": ["https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1"],
+    id: actorId,
     type: "Service",
     name: actor.name,
     preferredUsername: actor.username,
     inbox: actor.inbox,
-    outbox: actor.outbox
+    outbox: actor.outbox,
+    followers: `${actorId}/followers`,
+    publicKey: {
+      id: `${actorId}#main-key`,
+      owner: actorId,
+      publicKeyPem
+    }
   })
 })
+
 
 // Per-actor outbox
 app.get('/actors/:name/outbox', async (req, reply) => {
@@ -201,17 +220,20 @@ app.post('/inbox', async (request, reply) => {
             }
 
             const body = JSON.stringify(accept)
+            const headers = signRequest(inboxUrl, body, actorEntry.id)
 
             const acceptRes = await fetch(inboxUrl, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/activity+json'
-                // (later: add HTTP Signature headers here)
-              },
+              headers,
               body
             })
 
-            console.log('[INBOX] sent Accept to', inboxUrl, 'status =', acceptRes.status)
+            console.log(
+              '[INBOX] sent Accept to',
+              inboxUrl,
+              'status =',
+              acceptRes.status
+            )
             if (!acceptRes.ok) {
               console.error('[INBOX] Accept response body:', await acceptRes.text())
             }
@@ -228,7 +250,6 @@ app.post('/inbox', async (request, reply) => {
 
   reply.code(202).send({})
 })
-
 
 app.get('/actors/:name/followers', async (req, reply) => {
   const actor = ACTORS[req.params.name]
@@ -248,7 +269,6 @@ app.get('/actors/:name/followers', async (req, reply) => {
     orderedItems: followers
   })
 })
-
 
 app.get('/health', async () => ({ ok: true }))
 app.listen({ port: PORT, host: '0.0.0.0' })
