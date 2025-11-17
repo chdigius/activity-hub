@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database(path.join(__dirname, '..', 'activityhub.db'));
 
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS events (
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_published ON events(published_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_scope_url ON events(scope, url);
 
 CREATE TABLE IF NOT EXISTS outbox (
   id TEXT PRIMARY KEY,

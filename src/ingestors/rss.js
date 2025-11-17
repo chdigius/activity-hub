@@ -5,22 +5,57 @@ import { fingerprint } from '../utils/canonicalize.js';
 
 const parser = new Parser();
 
-export async function ingestFeed(feedUrl, scope='portfolio') {
+export async function ingestFeed(feedUrl, scope = 'portfolio') {
   const feed = await parser.parseURL(feedUrl);
+
   for (const item of feed.items || []) {
     const payload = normalizeRssItem(item, scope);
     if (!payload?.url) continue;
 
-    const fp = fingerprint(payload);
+    // 🔹 First line of defense: dedupe by (scope, url)
+    const existingByUrl = db
+      .prepare('SELECT id FROM events WHERE scope = ? AND url = ?')
+      .get(scope, payload.url);
 
-    // Skip if already inserted
-    const exists = db.prepare('SELECT id FROM events WHERE fingerprint=?').get(fp);
-    if (exists) continue;
+    if (existingByUrl) {
+      // We've already created an event for this devlog entry.
+      // We *could* update content here in the future, but for now: no new deliveries.
+      continue;
+    }
+
+    // 🔹 Fingerprint still useful for internal identity, but not the primary dedupe key
+    const fp = fingerprint(payload);
 
     const id = ulid();
     db.prepare(`
-      INSERT INTO events (id, kind, scope, source, title, summary, content_html, url, media_json, tags_json, published_at, fingerprint)
-      VALUES (@id,@kind,@scope,@source,@title,@summary,@content_html,@url,@media_json,@tags_json,@published_at,@fingerprint)
+      INSERT OR IGNORE INTO events (
+        id,
+        kind,
+        scope,
+        source,
+        title,
+        summary,
+        content_html,
+        url,
+        media_json,
+        tags_json,
+        published_at,
+        fingerprint
+      )
+      VALUES (
+        @id,
+        @kind,
+        @scope,
+        @source,
+        @title,
+        @summary,
+        @content_html,
+        @url,
+        @media_json,
+        @tags_json,
+        @published_at,
+        @fingerprint
+      )
     `).run({
       id,
       kind: payload.kind,
@@ -36,7 +71,17 @@ export async function ingestFeed(feedUrl, scope='portfolio') {
       fingerprint: fp
     });
 
-    // Enqueue deliveries
+    // If the insert was ignored (because of UNIQUE(scope,url)), don't enqueue deliveries
+    const inserted = db
+      .prepare('SELECT id FROM events WHERE scope = ? AND url = ?')
+      .get(scope, payload.url);
+
+    if (!inserted || inserted.id !== id) {
+      // Row already existed, or this insert was ignored → no new deliveries
+      continue;
+    }
+
+    // 🔹 Enqueue deliveries only for truly new events
     enqueueDelivery(id, 'activitypub');
     if (process.env.LINKEDIN_ENABLED === 'true') {
       enqueueDelivery(id, 'linkedin');
@@ -50,7 +95,9 @@ function enqueueDelivery(eventId, dest) {
       INSERT OR IGNORE INTO deliveries (event_id, dest, status, attempts, next_retry_at)
       VALUES (?,?,?,?,datetime('now'))
     `).run(eventId, dest, 'pending', 0);
-  } catch {}
+  } catch {
+    // swallow errors for now; can add logging later
+  }
 }
 
 function normalizeRssItem(item, scope) {
