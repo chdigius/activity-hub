@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS deliveries (
 CREATE TABLE IF NOT EXISTS followers (
   actor_id TEXT NOT NULL,
   follower TEXT NOT NULL,
+  inbox TEXT,
+  sharedInbox TEXT,
   PRIMARY KEY (actor_id, follower)
 );
 

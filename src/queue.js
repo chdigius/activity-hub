@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import db from './db.js'
 import { postToLinkedIn } from './destinations/linkedin.js'
-import { writeOutboxActivity } from './destinations/activitypub.js'
+import { writeOutboxActivity, deliverActivityToFollowers } from './destinations/activitypub.js'
 import { ACTORS, SCOPE_ACTOR, PUBLIC } from './config.js'
 
 function actorForScope(scope) {
@@ -20,12 +20,15 @@ async function deliver(row) {
 
   if (row.dest === 'activitypub') {
     const actorId = actorForScope(event.scope)
-    await writeOutboxActivity(event, actorId)
+    const activity = writeOutboxActivity(event, actorId)
+    await deliverActivityToFollowers(activity, actorId)
     return
   } else if (row.dest === 'linkedin') {
-    console.log(`[queue] LinkedIn → event ${row.event_id} as ${process.env.LINKEDIN_MEMBER_URN}`);
+    console.log(
+      `[queue] LinkedIn → event ${row.event_id} as ${process.env.LINKEDIN_MEMBER_URN}`
+    )
     await postToLinkedIn(event)
-    console.log(`[queue] LinkedIn OK → event ${row.event_id}`);
+    console.log(`[queue] LinkedIn OK → event ${row.event_id}`)
     return
   }
 
@@ -52,7 +55,14 @@ async function loop() {
         UPDATE deliveries
         SET attempts=?, next_retry_at=datetime('now', ? || ' minutes'), last_error=?
         WHERE id=?
-      `).run(attempts, mins, JSON.stringify(err.response?.data ?? { message: err.message, stack: err.stack }), d.id)
+      `).run(
+        attempts,
+        mins,
+        JSON.stringify(
+          err.response?.data ?? { message: err.message, stack: err.stack }
+        ),
+        d.id
+      )
       if (attempts >= 5) {
         db.prepare(`UPDATE deliveries SET status='failed' WHERE id=?`).run(d.id)
       }
