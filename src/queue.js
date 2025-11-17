@@ -22,12 +22,11 @@ async function deliver(row) {
     const actorId = actorForScope(event.scope)
     await writeOutboxActivity(event, actorId)
     return
-  }
-
-  if (row.dest === 'linkedin') {
+  } else if (row.dest === 'linkedin') {
     console.log(`[queue] LinkedIn → event ${row.event_id} as ${process.env.LINKEDIN_MEMBER_URN}`);
     await postToLinkedIn(event)
     console.log(`[queue] LinkedIn OK → event ${row.event_id}`);
+    return
   }
 
   throw new Error(`Unknown dest ${row.dest}`)
